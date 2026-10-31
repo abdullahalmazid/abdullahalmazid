@@ -1,0 +1,953 @@
+/**
+ * SECTION REGISTRY
+ * src/lib/sections.js
+ *
+ * Every section on every page is a plain object:
+ *
+ *   { id, kind, hidden, heading{}, props{}, style{}, viewAll{} }
+ *
+ * This file declares, for each kind, its defaults and the form fields that
+ * edit it. The editor panel is generated from these declarations, so adding a
+ * new option is one line here and nothing else.
+ *
+ * Field descriptor:
+ *   { key: 'props.name', label, type, options, help, when(section), min, max, step,
+ *     fields (for list types), group }
+ */
+import { clone, deepMerge, uid } from './utils';
+
+/* ------------------------------------------------------------------ */
+/* Shared pieces                                                       */
+/* ------------------------------------------------------------------ */
+
+export const DEFAULT_HEADING = {
+  show: true,
+  eyebrow: '',
+  title: '',
+  subtitle: '',
+  align: 'left',
+  size: 'md',
+  style: 'plain', // plain | rule | side
+};
+
+export const DEFAULT_VIEWALL = { show: false, label: 'View all', target: '', mode: 'drawer' };
+
+export const DEFAULT_STYLE = {
+  tone: 'inherit', // inherit | soft | muted | contrast | accent | custom
+  bgType: 'color', // color | gradient | image (when tone = custom)
+  bgColor: '',
+  bgColor2: '',
+  bgAngle: 135,
+  bgImage: '',
+  overlay: 0.45,
+  textColor: '',
+  accentColor: '',
+  paddingTop: 88,
+  paddingBottom: 88,
+  width: 'normal', // narrow | normal | wide | full
+  minHeight: 0,
+  contentAlign: 'left',
+  radius: '',
+  fontScale: 1,
+  borderTop: false,
+  borderBottom: false,
+  animation: 'auto', // auto (site setting) | off | fade | rise | genie
+  anchor: '',
+  hideMobile: false,
+  hideDesktop: false,
+  className: '',
+  customCss: '',
+};
+
+export const ACTIONS = [
+  { value: 'drawer', label: 'Open a tab in the side panel' },
+  { value: 'page', label: 'Go to a tab' },
+  { value: 'scroll', label: 'Scroll to a section (anchor)' },
+  { value: 'url', label: 'Open a web link' },
+  { value: 'email', label: 'Send an email' },
+];
+
+export const ICON_CHOICES = [
+  '', 'User', 'Radar', 'Mail', 'BookOpen', 'Award', 'Briefcase', 'GraduationCap', 'FlaskConical',
+  'Linkedin', 'Github', 'Globe', 'FileText', 'Download', 'Phone', 'MapPin', 'Calendar', 'Star',
+  'Sparkles', 'Lightbulb', 'Cpu', 'Wifi', 'HeartPulse', 'Building2', 'Users', 'Newspaper', 'Images',
+  'Landmark', 'Handshake', 'ExternalLink', 'ArrowRight', 'Check', 'Quote', 'Mic', 'Video', 'Youtube',
+  'Twitter', 'Facebook', 'Rss', 'Link', 'Home', 'Layers', 'PenLine', 'Microscope', 'Trophy', 'Presentation',
+  'School', 'UsersRound', 'Folder', 'Code2', 'Terminal', 'Database', 'Factory', 'Cog', 'Gauge', 'Boxes', 'Wrench', 'Printer',
+];
+
+const BUTTON_FIELDS = [
+  { key: 'label', label: 'Text', type: 'text' },
+  { key: 'action', label: 'When clicked', type: 'select', options: ACTIONS },
+  { key: 'target', label: 'Target', type: 'action-target', help: 'A tab, an anchor id, a web address or an email.' },
+  { key: 'style', label: 'Style', type: 'segmented', options: ['solid', 'outline', 'link'] },
+  { key: 'icon', label: 'Icon', type: 'icon' },
+];
+
+export const DISPLAY_MODES = [
+  { value: 'citation', label: 'Citation list', hint: 'Numbered, academic style. Best for publications.' },
+  { value: 'list', label: 'List', hint: 'One item per row with an optional thumbnail.' },
+  { value: 'cards', label: 'Cards', hint: 'A responsive grid of cards.' },
+  { value: 'timeline', label: 'Timeline', hint: 'Dates on a vertical line. For careers and degrees.' },
+  { value: 'minimal', label: 'Compact rows', hint: 'Date, title and source on one line.' },
+  { value: 'masonry', label: 'Photo wall', hint: 'Images of varying height.' },
+  { value: 'skills', label: 'Skill chips', hint: 'Compact chips with a depth meter. Group by area for cards.' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Kinds                                                               */
+/* ------------------------------------------------------------------ */
+
+export const KINDS = {
+  hero: {
+    label: 'Introduction (hero)',
+    icon: 'User',
+    description: 'Photo, name, titles, short bio and buttons.',
+    hasHeading: false,
+    defaults: () => ({
+      props: {
+        eyebrow: '',
+        name: 'Your name',
+        roles: 'Your position',
+        bio: '',
+        image: '',
+        imageAlt: '',
+        imageShape: 'arch',
+        imageSide: 'left',
+        imageWidth: 33,
+        height: 80,
+        verticalAlign: 'center',
+        buttons: [],
+        keywords: '',
+        showKeywords: true,
+        showSocials: true,
+        decoration: 'waveform',
+        nameSize: 'lg',
+        typed: false,
+      },
+      style: { paddingTop: 40, paddingBottom: 24, width: 'normal' },
+    }),
+    fields: [
+      { group: 'Text', note: 'Name, titles, short introduction', icon: 'PenLine' },
+      { key: 'props.eyebrow', label: 'Small line above the name', type: 'text' },
+      { key: 'props.name', label: 'Name', type: 'text' },
+      { key: 'props.nameSize', label: 'Name size', type: 'segmented', options: ['md', 'lg', 'xl'] },
+      { key: 'props.roles', label: 'Titles (one per line)', type: 'textarea', rows: 3 },
+      { key: 'props.typed', label: 'Animate titles (typewriter)', type: 'toggle', help: 'Cycles through the titles. Visitors who prefer reduced motion see them all at once.' },
+      { key: 'props.bio', label: 'Short introduction', type: 'markdown', rows: 4 },
+      { key: 'props.keywords', label: 'Keywords (comma separated)', type: 'textarea', rows: 2 },
+      { key: 'props.showKeywords', label: 'Show keywords', type: 'toggle' },
+      { key: 'props.showSocials', label: 'Show profile links', type: 'toggle', help: 'Edit the links in Admin, Design, Site details.' },
+      { group: 'Buttons', note: 'Calls to action under the introduction', icon: 'ArrowRight' },
+      { key: 'props.buttons', label: 'Buttons', type: 'list', fields: BUTTON_FIELDS, itemLabel: (b) => b.label || 'Button', addLabel: 'Add button', newItem: () => ({ label: 'New button', action: 'drawer', target: 'about', style: 'outline', icon: '' }) },
+      { group: 'Photo', note: 'Picture, shape and position', icon: 'Images' },
+      { key: 'props.image', label: 'Photo', type: 'image' },
+      { key: 'props.imageAlt', label: 'Photo description', type: 'text' },
+      { key: 'props.imageShape', label: 'Shape', type: 'segmented', options: ['arch', 'rounded', 'circle', 'square'] },
+      { key: 'props.imageSide', label: 'Side', type: 'segmented', options: ['left', 'right'] },
+      { key: 'props.imageWidth', label: 'Photo column width (%)', type: 'range', min: 20, max: 50, step: 1 },
+      { group: 'Layout', note: 'Height, alignment and background motif', icon: 'LayoutTemplate' },
+      { key: 'props.height', label: 'Height (% of window)', type: 'range', min: 40, max: 100, step: 5 },
+      { key: 'props.verticalAlign', label: 'Vertical alignment', type: 'segmented', options: ['start', 'center', 'end'] },
+      { key: 'props.decoration', label: 'Background motif', type: 'segmented', options: ['waveform', 'grid', 'dots', 'none'] },
+    ],
+  },
+
+  collection: {
+    label: 'Content list',
+    icon: 'LayoutList',
+    description: 'Publications, awards, experience or any collection, in a layout you choose.',
+    hasHeading: true,
+    defaults: () => ({
+      props: {
+        collection: 'publications',
+        selection: 'all', // all | filter | manual
+        filterField: '',
+        filterValue: '',
+        ids: [],
+        sortField: '',
+        sortDir: 'asc',
+        limit: 0,
+        groupBy: '',
+        mode: 'list',
+        columns: 3,
+        numbered: true,
+        showImages: true,
+        imageAspect: '4/3',
+        imagePosition: 'auto', // auto | top | left | right | alternate | alternate-right | none
+        imageSize: 'md', // sm | md | lg (side images)
+        imageShape: 'rounded', // rounded | square | circle
+        imageFit: 'cover', // cover | contain
+        verticalAlign: 'start', // start | center
+        textAlign: 'left', // left | center
+        titleSize: 'md', // sm | md | lg
+        hover: 'none', // none | lift | zoom
+        stackMobile: true,
+        placeholder: 'none', // none | avatar (when an entry has no image)
+        showBody: true,
+        bodyLines: 2,
+        showTags: true,
+        showLinks: true,
+        hiddenFields: [],
+        cardStyle: 'outline', // outline | filled | shadow | plain
+        density: 'comfortable',
+        showSearch: false,
+        chipsField: '',
+        clickable: true,
+        emptyText: 'Nothing here yet.',
+        exportBib: false,
+        rss: false,
+      },
+    }),
+    fields: [
+      { group: 'What to show', note: 'Which list, which entries, in what order', icon: 'LayoutList' },
+      { key: 'props.collection', label: 'Collection', type: 'collection' },
+      { key: 'props.selection', label: 'Items', type: 'segmented', options: [{ value: 'all', label: 'All' }, { value: 'filter', label: 'Filtered' }, { value: 'manual', label: 'Hand-picked' }] },
+      { key: 'props.filterField', label: 'Filter field', type: 'field', when: (s) => s.props.selection === 'filter' },
+      { key: 'props.filterValue', label: 'Equals', type: 'field-value', fieldPath: 'props.filterField', when: (s) => s.props.selection === 'filter' },
+      { key: 'props.ids', label: 'Pick and order items', type: 'items', when: (s) => s.props.selection === 'manual' },
+      { key: 'props.sortField', label: 'Sort by', type: 'field', allowOrder: true, when: (s) => s.props.selection !== 'manual' },
+      { key: 'props.sortDir', label: 'Direction', type: 'segmented', options: [{ value: 'asc', label: 'Ascending' }, { value: 'desc', label: 'Descending' }], when: (s) => s.props.selection !== 'manual' },
+      { key: 'props.limit', label: 'How many (0 = all)', type: 'number', min: 0, max: 500 },
+      { key: 'props.groupBy', label: 'Group under headings by', type: 'field', allowNone: true },
+      { group: 'Layout', note: 'Cards, list, timeline… and columns', icon: 'LayoutTemplate' },
+      { key: 'props.mode', label: 'Layout', type: 'mode' },
+      { key: 'props.columns', label: 'Columns', type: 'segmented', options: [1, 2, 3, 4], when: (s) => ['cards', 'masonry', 'list'].includes(s.props.mode) },
+      { key: 'props.cardStyle', label: 'Card style', type: 'segmented', options: ['outline', 'filled', 'shadow', 'plain'], when: (s) => ['cards', 'list'].includes(s.props.mode) },
+      { key: 'props.density', label: 'Spacing', type: 'segmented', options: ['compact', 'comfortable', 'airy'] },
+      { group: 'Card design', note: 'Images, sizes, alignment and hover', icon: 'Images' },
+      {
+        key: 'props.imagePosition',
+        label: 'Image position',
+        type: 'segmented',
+        options: [
+          { value: 'auto', label: 'Default' },
+          { value: 'top', label: 'Top' },
+          { value: 'left', label: 'Left' },
+          { value: 'right', label: 'Right' },
+          { value: 'alternate', label: 'Alternate (left first)' },
+          { value: 'alternate-right', label: 'Alternate (right first)' },
+          { value: 'none', label: 'No image' },
+        ],
+        when: (s) => ['cards', 'list'].includes(s.props.mode),
+        help: 'Alternate puts the image on opposite sides in every other entry (zig-zag). Works best with 1 column. Default = top for cards, left for lists.',
+      },
+      {
+        key: 'props.imageSize',
+        label: 'Image width',
+        type: 'segmented',
+        options: [{ value: 'sm', label: 'Small' }, { value: 'md', label: 'Medium' }, { value: 'lg', label: 'Large (half)' }],
+        when: (s) => ['cards', 'list'].includes(s.props.mode) && !['top', 'none'].includes(s.props.imagePosition) && !(s.props.mode === 'cards' && (!s.props.imagePosition || s.props.imagePosition === 'auto')),
+      },
+      {
+        key: 'props.imageAspect',
+        label: 'Image proportion',
+        type: 'segmented',
+        options: [{ value: '16/9', label: '16:9' }, { value: '3/2', label: '3:2' }, { value: '4/3', label: '4:3' }, { value: '1/1', label: 'Square' }, { value: '3/4', label: '3:4' }, { value: '21/9', label: 'Wide' }, { value: 'auto', label: 'Original' }],
+        when: (s) => ['cards', 'list'].includes(s.props.mode) && s.props.imagePosition !== 'none',
+        help: 'Side images fill the card height on larger screens; this proportion is used on phones and for top images.',
+      },
+      { key: 'props.imageShape', label: 'Image corners', type: 'segmented', options: [{ value: 'rounded', label: 'Rounded' }, { value: 'square', label: 'Square' }, { value: 'circle', label: 'Circle' }], when: (s) => ['cards', 'list'].includes(s.props.mode) && s.props.imagePosition !== 'none' },
+      { key: 'props.imageFit', label: 'Image fit', type: 'segmented', options: [{ value: 'cover', label: 'Fill (crop)' }, { value: 'contain', label: 'Whole image (logos)' }], when: (s) => ['cards', 'list'].includes(s.props.mode) && s.props.imagePosition !== 'none' },
+      { key: 'props.verticalAlign', label: 'Text next to the image', type: 'segmented', options: [{ value: 'start', label: 'Top' }, { value: 'center', label: 'Middle' }], when: (s) => ['cards', 'list'].includes(s.props.mode) },
+      { key: 'props.textAlign', label: 'Text alignment', type: 'segmented', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }], when: (s) => ['cards', 'list'].includes(s.props.mode) },
+      { key: 'props.titleSize', label: 'Title size', type: 'segmented', options: [{ value: 'sm', label: 'Small' }, { value: 'md', label: 'Medium' }, { value: 'lg', label: 'Large' }], when: (s) => ['cards', 'list'].includes(s.props.mode) },
+      { key: 'props.hover', label: 'Hover effect', type: 'segmented', options: [{ value: 'none', label: 'None' }, { value: 'lift', label: 'Lift' }, { value: 'zoom', label: 'Zoom image' }], when: (s) => ['cards', 'list'].includes(s.props.mode) },
+      {
+        key: 'props.placeholder',
+        label: 'When an entry has no image',
+        type: 'segmented',
+        options: [{ value: 'none', label: 'Leave it out' }, { value: 'avatar', label: 'Show an avatar' }],
+        when: (s) => ['cards', 'list'].includes(s.props.mode) && s.props.imagePosition !== 'none' && s.props.showImages,
+        help: 'Avatar = initials for people lists, or the list’s icon for anything else.',
+      },
+      { key: 'props.stackMobile', label: 'On phones, show side images above the text (off = hide them)', type: 'toggle', when: (s) => ['cards', 'list'].includes(s.props.mode) && !['top', 'none', 'auto', undefined, ''].includes(s.props.imagePosition) },
+      { key: 'props.numbered', label: 'Number the entries', type: 'toggle', when: (s) => s.props.mode === 'citation' },
+      { group: 'Fields', note: 'Which parts of each entry appear', icon: 'Check' },
+      { key: 'props.showImages', label: 'Show images', type: 'toggle' },
+      { key: 'props.showBody', label: 'Show description', type: 'toggle' },
+      { key: 'props.bodyLines', label: 'Description lines (0 = full)', type: 'number', min: 0, max: 20, when: (s) => s.props.showBody },
+      { key: 'props.showTags', label: 'Show tags', type: 'toggle' },
+      { key: 'props.showLinks', label: 'Show link buttons', type: 'toggle' },
+      { key: 'props.hiddenFields', label: 'Hide these fields', type: 'field-multi' },
+      { group: 'Interaction', note: 'Click to open, search and filter buttons', icon: 'Search' },
+      { key: 'props.clickable', label: 'Open details in the side panel on click', type: 'toggle' },
+      { key: 'props.showSearch', label: 'Search box', type: 'toggle' },
+      { key: 'props.chipsField', label: 'Filter buttons by', type: 'field', allowNone: true },
+      { key: 'props.emptyText', label: 'Text when empty', type: 'text' },
+      { key: 'props.exportBib', label: 'Offer “Download all as BibTeX”', type: 'toggle', help: 'For lists with citations, such as publications.' },
+      { key: 'props.rss', label: 'Show an RSS feed link', type: 'toggle', help: 'For blog lists.' },
+    ],
+  },
+
+  richtext: {
+    label: 'Text and image',
+    icon: 'AlignLeft',
+    description: 'Formatted text with an optional photo and a list of key facts.',
+    hasHeading: true,
+    defaults: () => ({
+      props: {
+        body: 'Write here. **Bold**, _italic_, [links](https://example.com) and lists all work.',
+        lead: false,
+        columns: 1,
+        image: '',
+        imageAlt: '',
+        imageSide: 'none',
+        imageWidth: 38,
+        imageShape: 'rounded',
+        imageCaption: '',
+        factsTitle: '',
+        facts: [],
+      },
+    }),
+    fields: [
+      { group: 'Text', note: 'The words, size and columns', icon: 'PenLine' },
+      { key: 'props.body', label: 'Text', type: 'markdown', rows: 10 },
+      { key: 'props.lead', label: 'Larger first paragraph', type: 'toggle' },
+      { key: 'props.columns', label: 'Text columns', type: 'segmented', options: [1, 2] },
+      { group: 'Image', note: 'Optional picture beside the text', icon: 'Images' },
+      { key: 'props.imageSide', label: 'Image position', type: 'segmented', options: ['none', 'left', 'right', 'top'] },
+      { key: 'props.image', label: 'Image', type: 'image', when: (s) => s.props.imageSide !== 'none' },
+      { key: 'props.imageAlt', label: 'Image description', type: 'text', when: (s) => s.props.imageSide !== 'none' },
+      { key: 'props.imageCaption', label: 'Caption', type: 'text', when: (s) => s.props.imageSide !== 'none' },
+      { key: 'props.imageShape', label: 'Shape', type: 'segmented', options: ['arch', 'rounded', 'circle', 'square'], when: (s) => s.props.imageSide !== 'none' },
+      { key: 'props.imageWidth', label: 'Image width (%)', type: 'range', min: 20, max: 60, when: (s) => ['left', 'right'].includes(s.props.imageSide) },
+      { group: 'Key facts', note: 'A short label / value box', icon: 'Check' },
+      { key: 'props.factsTitle', label: 'Facts heading', type: 'text' },
+      { key: 'props.facts', label: 'Facts', type: 'list', fields: [{ key: 'label', label: 'Label', type: 'text' }, { key: 'value', label: 'Value (markdown)', type: 'text' }], itemLabel: (f) => f.label || 'Fact', addLabel: 'Add fact', newItem: () => ({ label: 'Label', value: 'Value' }) },
+    ],
+  },
+
+  blocks: {
+    label: 'Free layout',
+    icon: 'LayoutTemplate',
+    description: 'Build it yourself from headings, text, images, buttons, columns, cards and embeds.',
+    hasHeading: true,
+    defaults: () => ({ props: { blocks: [], gap: 'md' } }),
+    fields: [
+      { key: 'props.gap', label: 'Space between blocks', type: 'segmented', options: ['sm', 'md', 'lg'] },
+      { key: 'props.blocks', label: 'Blocks', type: 'blocks' },
+    ],
+  },
+
+  stats: {
+    label: 'Numbers',
+    icon: 'BarChart3',
+    description: 'Large figures such as publication counts, live from your collections.',
+    hasHeading: true,
+    defaults: () => ({ props: { items: [], align: 'left', size: 'lg', dividers: true } }),
+    fields: [
+      { key: 'props.align', label: 'Alignment', type: 'segmented', options: ['left', 'center'] },
+      { key: 'props.size', label: 'Number size', type: 'segmented', options: ['md', 'lg', 'xl'] },
+      { key: 'props.dividers', label: 'Dividers between numbers', type: 'toggle' },
+      {
+        key: 'props.items',
+        label: 'Numbers',
+        type: 'list',
+        itemLabel: (s) => s.label || 'Number',
+        addLabel: 'Add number',
+        newItem: () => ({ label: 'Label', value: '10', suffix: '+', source: '' }),
+        fields: [
+          { key: 'label', label: 'Label', type: 'text' },
+          { key: 'source', label: 'Count items from', type: 'collection', allowNone: true, help: 'Leave empty to type a fixed number.' },
+          { key: 'filterField', label: 'Only where field', type: 'text', help: 'Optional field key, e.g. type' },
+          { key: 'filterValue', label: 'equals', type: 'text' },
+          { key: 'value', label: 'Fixed number', type: 'text' },
+          { key: 'suffix', label: 'Suffix', type: 'text' },
+        ],
+      },
+    ],
+  },
+
+  resume: {
+    label: 'CV / résumé',
+    icon: 'FileText',
+    description: 'A printable CV built live from your lists: education, experience, projects, papers, skills.',
+    hasHeading: false,
+    defaults: () => ({
+      props: {
+        title: 'Curriculum vitae',
+        intro: '',
+        // Header
+        showPhoto: false,
+        photo: '',
+        photoShape: 'rounded',
+        photoSide: 'right',
+        headerAlign: 'left',
+        nameSize: 'lg',
+        showEmail: true,
+        showPhone: true,
+        showLocation: true,
+        showWebsite: true,
+        showSocials: true,
+        // CV-only overrides (empty = Site details)
+        name: '',
+        headline: '',
+        email: '',
+        phone: '',
+        location: '',
+        website: '',
+        extraContact: '',
+        // Look
+        ats: true, // standard fonts, one column, no photo, plain heading text
+        layout: 'single', // single | sidebar
+        accent: 'ink', // ink | site | custom
+        accentColor: '#1f3a8a',
+        headingStyle: 'rule', // rule | band | bar | plain
+        density: 'normal', // compact | normal | airy
+        fontScale: 100,
+        font: 'sans', // site | sans | serif
+        linkStyle: 'bold', // bold | underline | accent | plain
+        datePosition: 'right', // right | below | left
+        pageSize: 'A4',
+        showFooter: true,
+        latexStyle: 'boxed', // boxed | minimal
+        latexFont: 'lmodern', // lmodern | helvet | times
+        latexPhoto: true,
+        keepSections: true,
+        // Profile
+        summaryTitle: 'Profile',
+        summary: 'Industrial & Production Engineering graduate from BUET (CGPA 3.67/4.00) with research and project experience in operations research, quality engineering, statistical analysis, machine learning and computer vision. Interested in intelligent manufacturing, quality engineering and data-driven industrial systems.',
+        blocks: [
+          { collection: 'education', title: 'Education', format: 'entries', swapTitle: true },
+          { collection: 'experience', title: 'Industrial Exposure', format: 'entries', description: 'full', showSubtitle: true },
+          { collection: 'projects', title: 'Selected Academic Projects', format: 'entries', limit: 5, rightSide: 'group', showMeta: false },
+          { collection: 'publications', title: 'Research Publications', format: 'citations', citeStyle: 'short' },
+          { collection: 'skills', title: 'Technical Skills', format: 'grouped' },
+          { collection: 'awards', title: 'Achievements', format: 'entries' },
+          { collection: 'references', title: 'References', format: 'entries', showDetails: true },
+        ],
+      },
+      style: { paddingTop: 40, paddingBottom: 64 },
+    }),
+    fields: [
+      { group: 'CV sections', note: 'Which lists appear, in what order, and how each looks', icon: 'LayoutList' },
+      { key: 'props.blocks', label: '', type: 'cv-sections', full: true },
+      { group: 'Header', note: 'Name, headline, photo and contact line', icon: 'User' },
+      { key: 'props.name', label: 'Name on the CV', type: 'text', placeholder: 'Empty = your name from Site details', full: true },
+      { key: 'props.headline', label: 'Headline under the name', type: 'textarea', rows: 2, placeholder: 'Empty = position · affiliation from Site details', help: 'One line per row, e.g. “Industrial & Production Engineer” and “Operations research · Quality · Computer vision”. Tailor it to each job. Empty uses your position and affiliation from Dashboard → Design → Site details.' },
+      { key: 'props.photo', label: 'CV photo', type: 'image', help: 'Shown in the header of the downloaded PDF (turn it off under Look → Downloaded PDF). Empty uses your profile photo. A passport-style photo works best.' },
+      { key: 'props.showPhoto', label: 'Also show the photo on the web CV', type: 'toggle', help: 'Not shown on the web CV while ATS-friendly is on.' },
+      { key: 'props.photoShape', label: 'Photo shape', type: 'segmented', options: [{ value: 'circle', label: 'Circle' }, { value: 'rounded', label: 'Rounded' }, { value: 'square', label: 'Square' }], when: (s) => s.props.showPhoto },
+      { key: 'props.photoSide', label: 'Photo side', type: 'segmented', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }], when: (s) => s.props.showPhoto && s.props.headerAlign !== 'center' },
+      { key: 'props.headerAlign', label: 'Alignment', type: 'segmented', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }] },
+      { key: 'props.nameSize', label: 'Name size', type: 'segmented', options: [{ value: 'md', label: 'M' }, { value: 'lg', label: 'L' }, { value: 'xl', label: 'XL' }] },
+      { group: 'Contact line', sub: true, note: 'Switch items on or off; type to use different text on the CV only (empty = Site details).' },
+      { key: 'props.showEmail', label: 'Email', type: 'toggle' },
+      { key: 'props.email', label: 'Email on the CV', type: 'text', placeholder: 'From Site details', when: (s) => s.props.showEmail !== false },
+      { key: 'props.showPhone', label: 'Phone', type: 'toggle' },
+      { key: 'props.phone', label: 'Phone on the CV', type: 'text', placeholder: 'From Site details', when: (s) => s.props.showPhone !== false },
+      { key: 'props.showLocation', label: 'Location', type: 'toggle' },
+      { key: 'props.location', label: 'Location on the CV', type: 'text', placeholder: 'From Site details', when: (s) => s.props.showLocation !== false },
+      { key: 'props.showWebsite', label: 'Website address', type: 'toggle' },
+      { key: 'props.website', label: 'Website on the CV', type: 'text', placeholder: 'This site', when: (s) => s.props.showWebsite !== false },
+      { key: 'props.showSocials', label: 'Profile links (LinkedIn, GitHub… from Site details)', type: 'toggle' },
+      { key: 'props.extraContact', label: 'Extra items (one per line)', type: 'textarea', rows: 2, placeholder: 'e.g. Open to relocation\nhttps://scholar.google.com/…', help: 'Added to the end of the contact line. Links are shortened automatically.' },
+      { group: 'Look', note: 'ATS mode, layout, colour, headings, links and spacing', icon: 'Sparkles' },
+      { key: 'props.ats', label: 'ATS-friendly (recommended for job applications)', type: 'toggle', help: 'Applicant-tracking systems read the PDF reliably: standard fonts (Arial / Georgia), one column, no photo, no footer date, section headings as plain words. Turn off for a more designed CV to send by hand.' },
+      { key: 'props.layout', label: 'Layout', type: 'segmented', options: [{ value: 'single', label: 'One column' }, { value: 'sidebar', label: 'Two columns' }], when: (s) => s.props.ats === false, help: 'Two columns: sections set to “Side column” go in a narrow column on the left (good for skills, languages, achievements).' },
+      { key: 'props.font', label: 'Font', type: 'segmented', options: [{ value: 'sans', label: 'Arial' }, { value: 'serif', label: 'Georgia' }, { value: 'site', label: 'Site font' }], help: 'Arial and Georgia are installed on every computer and are read reliably by ATS. The site font looks more designed but is a web font.' },
+      { key: 'props.accent', label: 'Colour', type: 'segmented', options: [{ value: 'ink', label: 'Black' }, { value: 'site', label: 'Site accent' }, { value: 'custom', label: 'Custom' }] },
+      { key: 'props.accentColor', label: 'Custom colour', type: 'color', when: (s) => s.props.accent === 'custom' },
+      { key: 'props.headingStyle', label: 'Section headings', type: 'segmented', options: [{ value: 'rule', label: 'Underline' }, { value: 'band', label: 'Shaded band' }, { value: 'bar', label: 'Side bar' }, { value: 'plain', label: 'Plain' }] },
+      { key: 'props.linkStyle', label: 'Links', type: 'segmented', options: [{ value: 'bold', label: 'Bold' }, { value: 'underline', label: 'Underlined' }, { value: 'accent', label: 'Coloured' }, { value: 'plain', label: 'Plain' }] },
+      { key: 'props.datePosition', label: 'Dates', type: 'segmented', options: [{ value: 'right', label: 'Right' }, { value: 'below', label: 'Under title' }, { value: 'left', label: 'Left column' }] },
+      { key: 'props.density', label: 'Spacing', type: 'segmented', options: [{ value: 'compact', label: 'Compact' }, { value: 'normal', label: 'Normal' }, { value: 'airy', label: 'Airy' }] },
+      { key: 'props.fontScale', label: 'Text size (%)', type: 'range', min: 85, max: 120, step: 5 },
+      { group: 'Downloaded PDF (LaTeX)', sub: true, note: 'How “Download PDF” and Overleaf typeset the CV.' },
+      { key: 'props.latexStyle', label: 'Style', type: 'segmented', options: [{ value: 'boxed', label: 'Boxed sections' }, { value: 'minimal', label: 'Minimal' }], help: 'Boxed: each section in a frame with its title on a black tab, header framed with your photo. Minimal: plain headings with a rule.' },
+      { key: 'props.latexFont', label: 'PDF font', type: 'segmented', options: [{ value: 'lmodern', label: 'Latin Modern' }, { value: 'times', label: 'Times' }, { value: 'helvet', label: 'Helvetica' }], when: (s) => s.props.latexStyle !== 'minimal', help: 'All three are standard Type 1 fonts that ATS reads perfectly. Latin Modern is the classic LaTeX look.' },
+      { key: 'props.latexPhoto', label: 'Photo in the PDF header', type: 'toggle', when: (s) => s.props.latexStyle !== 'minimal', help: 'Uses the CV photo from Header (or your profile photo). Text stays fully readable by ATS.' },
+      { key: 'props.keepSections', label: 'Keep short sections on one page', type: 'toggle', when: (s) => s.props.latexStyle !== 'minimal', help: 'Sections with up to 4 entries never split across pages. Longer ones (e.g. projects) may continue on the next page so no big gap is left. Off: any section may split.' },
+      { key: 'props.pageSize', label: 'Paper', type: 'segmented', options: [{ value: 'A4', label: 'A4' }, { value: 'Letter', label: 'US Letter' }] },
+      { key: 'props.showFooter', label: '“Generated from …” line at the bottom', type: 'toggle', when: (s) => s.props.ats === false, help: 'Always off in ATS-friendly mode: parsers mistook its date for an extra degree.' },
+      { group: 'Profile summary', note: 'The short paragraph under your name', icon: 'PenLine' },
+      { key: 'props.summaryTitle', label: 'Heading', type: 'text' },
+      { key: 'props.summary', label: 'Text (empty = no profile section)', type: 'markdown', rows: 4 },
+      { group: 'Page around the CV', note: 'Heading and line shown on the website only (not printed)', icon: 'Globe' },
+      { key: 'props.title', label: 'Page heading', type: 'text' },
+      { key: 'props.intro', label: 'Line under the heading', type: 'text' },
+    ],
+  },
+
+  html: {
+    label: 'HTML',
+    icon: 'Code2',
+    description: 'Paste HTML: a snippet that blends in, or a full page with its own CSS and JavaScript.',
+    hasHeading: true,
+    defaults: () => ({
+      props: {
+        code: '<div style="padding:24px;border:1px solid var(--border);border-radius:var(--radius)">\n  <h3>Hello</h3>\n  <p>Paste your HTML here. Site colours work as <code>var(--accent)</code>.</p>\n</div>',
+        mode: 'auto',
+        useSiteTheme: true,
+        allowScripts: true,
+        minHeight: 0,
+      },
+    }),
+    fields: [
+      { group: 'Content', note: 'The HTML itself', icon: 'Code2' },
+      { key: 'props.code', label: 'HTML', type: 'code', rows: 16, help: 'A snippet or a whole page (<html>…</html>), with <style> and <script> if you need them.' },
+      { group: 'Display', note: 'Inline or isolated, theme and scripts', icon: 'Settings' },
+      {
+        key: 'props.mode',
+        label: 'Show it',
+        type: 'segmented',
+        options: [
+          { value: 'auto', label: 'Automatic' },
+          { value: 'inline', label: 'Inline (site styles)' },
+          { value: 'isolated', label: 'Isolated (own CSS / JS)' },
+        ],
+        help: 'Inline: blends with the site and is read by search engines; <style> and scripts are removed. Isolated: runs as its own small page that grows to fit, so its CSS cannot affect the rest of the site. Automatic picks Isolated when the code has <style>, <script> or <html>.',
+      },
+      { key: 'props.useSiteTheme', label: 'Use the site’s fonts and colours (isolated)', type: 'toggle', help: 'Gives the HTML var(--accent), var(--text-primary), var(--font-body)… and follows light/dark.', when: (s) => s.props.mode !== 'inline' },
+      { key: 'props.allowScripts', label: 'Run <script> in the HTML (isolated)', type: 'toggle', help: 'Scripts run in a sandbox: they cannot read this site, its cookies or your editor session.', when: (s) => s.props.mode !== 'inline' },
+      { key: 'props.minHeight', label: 'Minimum height (px, isolated)', type: 'number', min: 0, max: 4000, when: (s) => s.props.mode !== 'inline' },
+    ],
+  },
+
+  contact: {
+    label: 'Contact',
+    icon: 'Mail',
+    description: 'Address, email, a message form and a map.',
+    hasHeading: true,
+    defaults: () => ({
+      props: {
+        intro: '',
+        showDetails: true,
+        showForm: true,
+        showMap: true,
+        mapUrl: '',
+        formTitle: 'Send a message',
+        successText: 'Thank you. Your message has been sent.',
+        layout: 'split',
+      },
+    }),
+    fields: [
+      { key: 'props.intro', label: 'Introduction', type: 'markdown', rows: 3 },
+      { key: 'props.layout', label: 'Layout', type: 'segmented', options: ['split', 'stacked'] },
+      { key: 'props.showDetails', label: 'Show address and email', type: 'toggle', help: 'Edit them in Admin, Design, Site details.' },
+      { key: 'props.showForm', label: 'Show message form', type: 'toggle' },
+      { key: 'props.formTitle', label: 'Form title', type: 'text', when: (s) => s.props.showForm },
+      { key: 'props.successText', label: 'Message after sending', type: 'text', when: (s) => s.props.showForm },
+      { key: 'props.showMap', label: 'Show map', type: 'toggle' },
+      { key: 'props.mapUrl', label: 'Map embed link (optional)', type: 'text', help: 'Google Maps, Share, Embed a map, copy the src link. Empty uses the site default.', when: (s) => s.props.showMap },
+    ],
+  },
+};
+
+export const KIND_KEYS = Object.keys(KINDS);
+
+/* ------------------------------------------------------------------ */
+/* Design (shared by every kind)                                       */
+/* ------------------------------------------------------------------ */
+
+export const HEADING_FIELDS = [
+  { key: 'heading.show', label: 'Show heading', type: 'toggle' },
+  { key: 'heading.eyebrow', label: 'Small line above', type: 'text', when: (s) => s.heading.show },
+  { key: 'heading.title', label: 'Title', type: 'text', when: (s) => s.heading.show },
+  { key: 'heading.subtitle', label: 'Subtitle', type: 'textarea', rows: 2, when: (s) => s.heading.show },
+  { key: 'heading.align', label: 'Alignment', type: 'segmented', options: ['left', 'center', 'right'], when: (s) => s.heading.show },
+  { key: 'heading.size', label: 'Size', type: 'segmented', options: ['sm', 'md', 'lg', 'xl'], when: (s) => s.heading.show },
+  { key: 'heading.style', label: 'Style', type: 'segmented', options: [{ value: 'plain', label: 'Plain' }, { value: 'rule', label: 'Underline' }, { value: 'side', label: 'Side' }], when: (s) => s.heading.show, help: '“Side” puts the heading in a column beside the content on wide screens.' },
+  { group: 'Link below the section', note: 'A “view all” link after the content', icon: 'Link' },
+  { key: 'viewAll.show', label: 'Show a “view all” link', type: 'toggle' },
+  { key: 'viewAll.label', label: 'Link text', type: 'text', when: (s) => s.viewAll.show },
+  { key: 'viewAll.target', label: 'Tab', type: 'page', when: (s) => s.viewAll.show },
+  { key: 'viewAll.mode', label: 'Opens', type: 'segmented', options: [{ value: 'drawer', label: 'In side panel' }, { value: 'page', label: 'As a page' }], when: (s) => s.viewAll.show },
+];
+
+export const STYLE_FIELDS = [
+  { group: 'Colours', note: 'Background tone, colours and images', icon: 'Sparkles' },
+  {
+    key: 'style.tone',
+    label: 'Background',
+    type: 'select',
+    options: [
+      { value: 'inherit', label: 'Page background' },
+      { value: 'soft', label: 'Soft band' },
+      { value: 'muted', label: 'Deeper band' },
+      { value: 'card', label: 'Card colour' },
+      { value: 'contrast', label: 'Inverted (dark on light themes)' },
+      { value: 'accent', label: 'Accent colour' },
+      { value: 'custom', label: 'Custom…' },
+    ],
+  },
+  { key: 'style.bgType', label: 'Custom background', type: 'segmented', options: ['color', 'gradient', 'image'], when: (s) => s.style.tone === 'custom' },
+  { key: 'style.bgColor', label: 'Colour', type: 'color', when: (s) => s.style.tone === 'custom' && s.style.bgType !== 'image' },
+  { key: 'style.bgColor2', label: 'Second colour', type: 'color', when: (s) => s.style.tone === 'custom' && s.style.bgType === 'gradient' },
+  { key: 'style.bgAngle', label: 'Gradient angle', type: 'range', min: 0, max: 360, step: 5, when: (s) => s.style.tone === 'custom' && s.style.bgType === 'gradient' },
+  { key: 'style.bgImage', label: 'Background image', type: 'image', when: (s) => s.style.tone === 'custom' && s.style.bgType === 'image' },
+  { key: 'style.overlay', label: 'Darken image', type: 'range', min: 0, max: 0.9, step: 0.05, when: (s) => s.style.tone === 'custom' && s.style.bgType === 'image' },
+  { key: 'style.textColor', label: 'Text colour', type: 'color', when: (s) => s.style.tone === 'custom', help: 'Empty keeps the theme colour.' },
+  { key: 'style.accentColor', label: 'Accent colour override', type: 'color', help: 'Changes links and buttons inside this section only.' },
+  { group: 'Spacing and size', note: 'Padding, width, height and text size', icon: 'Layers' },
+  { key: 'style.paddingTop', label: 'Space above (px)', type: 'range', min: 0, max: 240, step: 4 },
+  { key: 'style.paddingBottom', label: 'Space below (px)', type: 'range', min: 0, max: 240, step: 4 },
+  { key: 'style.width', label: 'Content width', type: 'segmented', options: ['narrow', 'normal', 'wide', 'full'] },
+  { key: 'style.minHeight', label: 'Minimum height (% of window)', type: 'range', min: 0, max: 100, step: 5 },
+  { key: 'style.contentAlign', label: 'Text alignment', type: 'segmented', options: ['left', 'center'] },
+  { key: 'style.fontScale', label: 'Text size', type: 'range', min: 0.8, max: 1.4, step: 0.05 },
+  { key: 'style.radius', label: 'Corner roundness (px, empty = theme)', type: 'text' },
+  { group: 'Edges and motion', note: 'Corners, lines and entrance animation', icon: 'Sparkles' },
+  { key: 'style.borderTop', label: 'Line above', type: 'toggle' },
+  { key: 'style.borderBottom', label: 'Line below', type: 'toggle' },
+  {
+    key: 'style.animation',
+    label: 'Entrance while scrolling',
+    type: 'segmented',
+    options: [
+      { value: 'auto', label: 'Site default' },
+      { value: 'off', label: 'None' },
+      { value: 'fade', label: 'Fade' },
+      { value: 'rise', label: 'Rise' },
+      { value: 'genie', label: 'Genie' },
+    ],
+    help: 'Site default is set in Dashboard > Design > Motion. Visitors who prefer reduced motion never see it.',
+  },
+];
+
+export const ADVANCED_FIELDS = [
+  { key: 'style.anchor', label: 'Anchor id', type: 'text', help: 'Lets buttons scroll here. Letters, numbers and dashes.' },
+  { key: 'hidden', label: 'Hide this section from visitors', type: 'toggle' },
+  { key: 'style.hideMobile', label: 'Hide on phones', type: 'toggle' },
+  { key: 'style.hideDesktop', label: 'Hide on large screens', type: 'toggle' },
+  { key: 'style.className', label: 'Extra CSS classes', type: 'text', help: 'Tailwind classes work, e.g. italic tracking-wide' },
+  { key: 'style.customCss', label: 'Custom CSS', type: 'code', rows: 8, help: 'Use & for this section, e.g.  & h2 { letter-spacing: -0.02em }  — or write plain declarations.' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Blocks (inside a Free layout section)                               */
+/* ------------------------------------------------------------------ */
+
+const ALIGN = { key: 'align', label: 'Alignment', type: 'segmented', options: ['left', 'center', 'right'] };
+
+export const BLOCKS = {
+  heading: {
+    label: 'Heading',
+    defaults: { text: 'Heading', level: 2, align: 'left' },
+    fields: [{ key: 'text', label: 'Text', type: 'text' }, { key: 'level', label: 'Size', type: 'segmented', options: [1, 2, 3, 4] }, ALIGN],
+    preview: (p) => p.text,
+  },
+  text: {
+    label: 'Text',
+    defaults: { markdown: 'Some text.', align: 'left', size: 'md' },
+    fields: [{ key: 'markdown', label: 'Text', type: 'markdown', rows: 6 }, { key: 'size', label: 'Size', type: 'segmented', options: ['sm', 'md', 'lg'] }, ALIGN],
+    preview: (p) => (p.markdown || '').replace(/[#*_>`]/g, '').slice(0, 60),
+  },
+  image: {
+    label: 'Image',
+    defaults: { src: '', alt: '', caption: '', aspect: 'auto', width: 100, shape: 'rounded', align: 'center' },
+    fields: [
+      { key: 'src', label: 'Image', type: 'image' },
+      { key: 'alt', label: 'Description', type: 'text' },
+      { key: 'caption', label: 'Caption', type: 'text' },
+      { key: 'aspect', label: 'Shape', type: 'segmented', options: ['auto', '16/9', '4/3', '1/1', '3/4'] },
+      { key: 'shape', label: 'Corners', type: 'segmented', options: ['square', 'rounded', 'arch', 'circle'] },
+      { key: 'width', label: 'Width (%)', type: 'range', min: 20, max: 100, step: 5 },
+      ALIGN,
+    ],
+    preview: (p) => p.caption || p.alt || (p.src ? 'Image' : 'No image yet'),
+  },
+  buttons: {
+    label: 'Buttons',
+    defaults: { items: [{ label: 'Button', action: 'drawer', target: 'contact', style: 'solid', icon: '' }], align: 'left' },
+    fields: [
+      { key: 'items', label: 'Buttons', type: 'list', fields: BUTTON_FIELDS, itemLabel: (b) => b.label || 'Button', addLabel: 'Add button', newItem: () => ({ label: 'Button', action: 'drawer', target: 'contact', style: 'outline', icon: '' }) },
+      ALIGN,
+    ],
+    preview: (p) => (p.items || []).map((b) => b.label).join(', '),
+  },
+  quote: {
+    label: 'Quote',
+    defaults: { text: 'A sentence worth quoting.', cite: '', align: 'left' },
+    fields: [{ key: 'text', label: 'Quote', type: 'textarea', rows: 3 }, { key: 'cite', label: 'Who said it', type: 'text' }, ALIGN],
+    preview: (p) => p.text,
+  },
+  list: {
+    label: 'Checklist',
+    defaults: { items: 'First point\nSecond point\nThird point', icon: 'Check', columns: 1 },
+    fields: [{ key: 'items', label: 'Points (one per line)', type: 'textarea', rows: 5 }, { key: 'icon', label: 'Icon', type: 'icon' }, { key: 'columns', label: 'Columns', type: 'segmented', options: [1, 2, 3] }],
+    preview: (p) => (p.items || '').split('\n')[0],
+  },
+  cards: {
+    label: 'Cards',
+    defaults: { columns: 3, style: 'outline', items: [{ title: 'Card title', text: 'A short description.', icon: 'Sparkles', action: '', target: '' }] },
+    fields: [
+      { key: 'columns', label: 'Columns', type: 'segmented', options: [1, 2, 3, 4] },
+      { key: 'style', label: 'Style', type: 'segmented', options: ['outline', 'filled', 'shadow', 'plain'] },
+      {
+        key: 'items',
+        label: 'Cards',
+        type: 'list',
+        itemLabel: (c) => c.title || 'Card',
+        addLabel: 'Add card',
+        newItem: () => ({ title: 'Card title', text: 'A short description.', icon: 'Sparkles', action: '', target: '' }),
+        fields: [
+          { key: 'title', label: 'Title', type: 'text' },
+          { key: 'text', label: 'Text (markdown)', type: 'textarea', rows: 3 },
+          { key: 'icon', label: 'Icon', type: 'icon' },
+          { key: 'image', label: 'Image', type: 'image' },
+          { key: 'action', label: 'When clicked', type: 'select', options: [{ value: '', label: 'Nothing' }, ...ACTIONS] },
+          { key: 'target', label: 'Target', type: 'action-target' },
+        ],
+      },
+    ],
+    preview: (p) => `${(p.items || []).length} card(s)`,
+  },
+  columns: {
+    label: 'Columns',
+    container: true,
+    defaults: { layout: '1:1', gap: 'md', valign: 'top' },
+    fields: [
+      { key: 'layout', label: 'Split', type: 'segmented', options: ['1:1', '2:1', '1:2', '1:1:1', '1:1:1:1'] },
+      { key: 'gap', label: 'Gap', type: 'segmented', options: ['sm', 'md', 'lg'] },
+      { key: 'valign', label: 'Vertical alignment', type: 'segmented', options: ['top', 'center', 'bottom'] },
+    ],
+    preview: (p, b) => `${p.layout} — ${(b.children || []).map((c) => c.length).join(' / ')} block(s)`,
+  },
+  embed: {
+    label: 'Video / embed',
+    defaults: { url: '', aspect: '16/9', title: 'Embedded content' },
+    fields: [
+      { key: 'url', label: 'Link', type: 'text', help: 'YouTube, Vimeo, Google Slides/Docs/Maps or any embeddable page.' },
+      { key: 'aspect', label: 'Shape', type: 'segmented', options: ['16/9', '4/3', '1/1', '9/16'] },
+      { key: 'title', label: 'Title (for screen readers)', type: 'text' },
+    ],
+    preview: (p) => p.url || 'No link yet',
+  },
+  divider: {
+    label: 'Divider',
+    defaults: { style: 'line' },
+    fields: [{ key: 'style', label: 'Style', type: 'segmented', options: ['line', 'dots', 'wave'] }],
+    preview: (p) => p.style,
+  },
+  spacer: {
+    label: 'Spacer',
+    defaults: { height: 40 },
+    fields: [{ key: 'height', label: 'Height (px)', type: 'range', min: 8, max: 240, step: 8 }],
+    preview: (p) => `${p.height}px`,
+  },
+  html: {
+    label: 'HTML',
+    defaults: { code: '<p>Custom HTML</p>', mode: 'auto' },
+    fields: [
+      { key: 'code', label: 'HTML', type: 'code', rows: 10, help: 'A snippet or a whole page with <style> and <script>.' },
+      { key: 'mode', label: 'Show it', type: 'segmented', options: [{ value: 'auto', label: 'Automatic' }, { value: 'inline', label: 'Inline' }, { value: 'isolated', label: 'Isolated' }], help: 'Inline blends with the site (no <style>/scripts). Isolated keeps its own CSS and JavaScript in a sandbox.' },
+    ],
+    preview: (p) => (p.code || '').slice(0, 50),
+  },
+};
+
+export const BLOCK_KEYS = Object.keys(BLOCKS);
+export const COLUMN_COUNTS = { '1:1': 2, '2:1': 2, '1:2': 2, '1:1:1': 3, '1:1:1:1': 4 };
+
+export function createBlock(type) {
+  const def = BLOCKS[type];
+  const block = { id: uid('b'), type, props: clone(def?.defaults || {}) };
+  if (def?.container) block.children = Array.from({ length: COLUMN_COUNTS[block.props.layout] || 2 }, () => []);
+  return block;
+}
+
+export function normalizeBlock(block) {
+  const def = BLOCKS[block?.type];
+  if (!def) return block;
+  const next = { ...block, id: block.id || uid('b'), props: { ...clone(def.defaults), ...(block.props || {}) } };
+  if (def.container) {
+    const count = COLUMN_COUNTS[next.props.layout] || 2;
+    const kids = Array.isArray(block.children) ? block.children.map((c) => (Array.isArray(c) ? c : [])) : [];
+    while (kids.length < count) kids.push([]);
+    if (kids.length > count) {
+      const extra = kids.splice(count).flat();
+      kids[count - 1] = [...kids[count - 1], ...extra];
+    }
+    next.children = kids.map((col) => col.filter((c) => !BLOCKS[c?.type]?.container).map(normalizeBlock));
+  }
+  return next;
+}
+
+/* ------------------------------------------------------------------ */
+/* Normalising                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Fill a stored section with every default so renderers never see undefined. */
+export function normalizeSection(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const kind = KINDS[raw.kind] ? raw.kind : 'blocks';
+  const defs = KINDS[kind].defaults();
+  const section = {
+    id: raw.id || uid('s'),
+    kind,
+    hidden: Boolean(raw.hidden),
+    heading: { ...DEFAULT_HEADING, ...(raw.heading || {}) },
+    props: deepMerge(defs.props || {}, raw.props || {}),
+    style: { ...DEFAULT_STYLE, ...(defs.style || {}), ...(raw.style || {}) },
+    viewAll: { ...DEFAULT_VIEWALL, ...(raw.viewAll || {}) },
+    // Editors-only "needs review" note (cleared from the Section Studio).
+    ...(raw.review ? { review: raw.review } : {}),
+  };
+  if (kind === 'blocks') section.props.blocks = (section.props.blocks || []).map(normalizeBlock);
+  return section;
+}
+
+export function createSection(kind, overrides = {}) {
+  const defs = KINDS[kind].defaults();
+  return normalizeSection({
+    id: uid('s'),
+    kind,
+    heading: { title: overrides.title ?? (KINDS[kind].hasHeading ? 'New section' : '') },
+    props: defs.props,
+    style: defs.style,
+    ...overrides,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Templates for the "Add section" dialog                              */
+/* ------------------------------------------------------------------ */
+
+const block = (type, props = {}, children) => {
+  const b = createBlock(type);
+  b.props = { ...b.props, ...props };
+  if (children) b.children = children;
+  return b;
+};
+
+export const TEMPLATES = [
+  { id: 'list-publications', group: 'Content', kind: 'collection', label: 'Publication list', description: 'Numbered citations with search.', make: () => createSection('collection', { heading: { title: 'Publications' }, props: { collection: 'publications', mode: 'citation', sortField: 'year', sortDir: 'desc', showSearch: true } }) },
+  { id: 'list-timeline', group: 'Content', kind: 'collection', label: 'Timeline', description: 'Experience or education on a line.', make: () => createSection('collection', { heading: { title: 'Experience' }, props: { collection: 'experience', mode: 'timeline' } }) },
+  { id: 'list-cards', group: 'Content', kind: 'collection', label: 'Card grid', description: 'Research areas, team, projects.', make: () => createSection('collection', { heading: { title: 'Research areas' }, props: { collection: 'research', mode: 'cards', columns: 3 } }) },
+  { id: 'list-rows', group: 'Content', kind: 'collection', label: 'Compact list', description: 'Awards, news, grants, one per line.', make: () => createSection('collection', { heading: { title: 'Awards' }, props: { collection: 'awards', mode: 'minimal', sortField: 'year', sortDir: 'desc' } }) },
+  { id: 'list-photos', group: 'Content', kind: 'collection', label: 'Photo wall', description: 'Gallery images.', make: () => createSection('collection', { heading: { title: 'Gallery' }, props: { collection: 'gallery', mode: 'masonry', columns: 3 } }) },
+  { id: 'hero', group: 'Introduction', kind: 'hero', label: 'Introduction', description: 'Photo, name, titles and buttons.', make: () => createSection('hero') },
+  { id: 'text', group: 'Writing', kind: 'richtext', label: 'Text', description: 'A heading and formatted text.', make: () => createSection('richtext', { heading: { title: 'Section title' } }) },
+  { id: 'text-image', group: 'Writing', kind: 'richtext', label: 'Text beside image', description: 'Photo on one side, text on the other.', make: () => createSection('richtext', { heading: { title: 'Section title' }, props: { imageSide: 'right', imageWidth: 40 } }) },
+  { id: 'facts', group: 'Writing', kind: 'richtext', label: 'Text with key facts', description: 'Paragraphs and a short fact list.', make: () => createSection('richtext', { heading: { title: 'At a glance' }, props: { factsTitle: 'Key facts', facts: [{ label: 'Label', value: 'Value' }] } }) },
+  { id: 'quote', group: 'Writing', kind: 'blocks', label: 'Quote', description: 'One large quotation.', make: () => createSection('blocks', { heading: { show: false }, props: { blocks: [block('quote', { text: 'A sentence worth quoting.', cite: 'Name' })] }, style: { width: 'narrow' } }) },
+  { id: 'cta', group: 'Action', kind: 'blocks', label: 'Call to action', description: 'A prompt with buttons on a coloured band.', make: () => createSection('blocks', { heading: { show: false }, props: { blocks: [block('heading', { text: 'Interested in working together?', align: 'center' }), block('text', { markdown: 'I welcome students and collaborators working on AI for health and smart cities.', align: 'center' }), block('buttons', { align: 'center', items: [{ label: 'Get in touch', action: 'drawer', target: 'contact', style: 'solid', icon: 'Mail' }] })] }, style: { tone: 'accent', width: 'narrow' } }) },
+  { id: 'cards-static', group: 'Action', kind: 'blocks', label: 'Feature cards', description: 'Cards you write by hand.', make: () => createSection('blocks', { heading: { title: 'Highlights' }, props: { blocks: [block('cards')] } }) },
+  { id: 'two-col', group: 'Layout', kind: 'blocks', label: 'Two columns', description: 'Text and image side by side.', make: () => createSection('blocks', { heading: { title: 'Section title' }, props: { blocks: [block('columns', { layout: '1:1', valign: 'center' }, [[block('text', { markdown: 'Left column text.' })], [block('image')]])] } }) },
+  { id: 'video', group: 'Layout', kind: 'blocks', label: 'Video', description: 'A YouTube or Vimeo video.', make: () => createSection('blocks', { heading: { title: 'Watch' }, props: { blocks: [block('embed')] }, style: { width: 'narrow' } }) },
+  { id: 'html', group: 'Layout', kind: 'html', label: 'HTML / custom code', description: 'Paste HTML, CSS and JavaScript.', make: () => createSection('html', { heading: { show: false } }) },
+  { id: 'blank', group: 'Layout', kind: 'blocks', label: 'Blank', description: 'Start empty and add blocks.', make: () => createSection('blocks', { heading: { title: '' , show: false } }) },
+  { id: 'stats', group: 'Action', kind: 'stats', label: 'Numbers', description: 'Counts of papers, grants and more.', make: () => createSection('stats', { heading: { show: false }, props: { items: [{ label: 'Publications', source: 'publications' }, { label: 'Awards', source: 'awards' }, { label: 'Grants', source: 'grants' }] }, style: { tone: 'contrast', paddingTop: 56, paddingBottom: 56 } }) },
+  { id: 'contact', group: 'Action', kind: 'contact', label: 'Contact', description: 'Details, form and map.', make: () => createSection('contact', { heading: { title: 'Contact' } }) },
+];
+
+export const TEMPLATE_GROUPS = ['Content', 'Writing', 'Introduction', 'Action', 'Layout'];
+
+/* ------------------------------------------------------------------ */
+/* Pages                                                               */
+/* ------------------------------------------------------------------ */
+
+// Menu icon guessed from a tab's address or name when none was chosen.
+const NAV_ICON_GUESSES = [
+  [/^home$|^index$/, 'Home'],
+  [/about|bio|profile/, 'User'],
+  [/research|lab/, 'FlaskConical'],
+  [/publication|paper|article/, 'BookOpen'],
+  [/experience|career|work|cv|resume/, 'Briefcase'],
+  [/award|honou?r|prize|achievement/, 'Award'],
+  [/group|team|student|people|member/, 'Users'],
+  [/gallery|photo|media/, 'Images'],
+  [/contact|reach/, 'Mail'],
+  [/teach|course|class/, 'GraduationCap'],
+  [/project/, 'Layers'],
+  [/blog|news|post/, 'PenLine'],
+  [/talk|event|seminar|conference/, 'Presentation'],
+];
+
+/** Icon name for the menu, or null for none. */
+export function navIconFor(page) {
+  if (!page) return null;
+  if (page.navIcon === 'none') return null;
+  if (page.navIcon) return page.navIcon;
+  const text = `${page.id} ${page.navLabel || ''} ${page.title || ''}`.toLowerCase();
+  return NAV_ICON_GUESSES.find(([re]) => re.test(page.id) || re.test(text))?.[1] || 'FileText';
+}
+
+export const DEFAULT_PAGE_HEADER = {
+  show: true,
+  title: '',
+  subtitle: '',
+  align: 'left',
+  tone: 'inherit', // inherit | soft | muted | card | contrast | accent | custom
+  size: 'normal', // compact | normal | tall
+  bgType: 'color', // color | gradient | image (tone = custom)
+  bgColor: '',
+  bgColor2: '',
+  bgAngle: 135,
+  bgImage: '',
+  overlay: 0.45,
+  textColor: '',
+};
+
+/** Background behind the whole tab (sections without their own background show it). */
+export const DEFAULT_PAGE_BACKGROUND = { type: 'none', color: '', color2: '', angle: 160, image: '', overlay: 0.3, fixed: false, textColor: '' };
+
+/** Form for a tab's title band and page background (Tab settings). */
+export const PAGE_LOOK_FIELDS = [
+  { group: 'Title band background' },
+  {
+    key: 'header.tone',
+    label: 'Background',
+    type: 'segmented',
+    options: [
+      { value: 'inherit', label: 'Page' },
+      { value: 'soft', label: 'Soft' },
+      { value: 'muted', label: 'Muted' },
+      { value: 'card', label: 'Card' },
+      { value: 'contrast', label: 'Dark' },
+      { value: 'accent', label: 'Accent' },
+      { value: 'custom', label: 'Custom' },
+    ],
+  },
+  { key: 'header.bgType', label: 'Custom background', type: 'segmented', options: [{ value: 'color', label: 'Colour' }, { value: 'gradient', label: 'Gradient' }, { value: 'image', label: 'Image' }], when: (d) => d.header.tone === 'custom' },
+  { key: 'header.bgColor', label: 'Colour', type: 'color', when: (d) => d.header.tone === 'custom' && d.header.bgType !== 'image' },
+  { key: 'header.bgColor2', label: 'Second colour', type: 'color', when: (d) => d.header.tone === 'custom' && d.header.bgType === 'gradient' },
+  { key: 'header.bgAngle', label: 'Gradient angle', type: 'range', min: 0, max: 360, step: 5, when: (d) => d.header.tone === 'custom' && d.header.bgType === 'gradient' },
+  { key: 'header.bgImage', label: 'Image', type: 'image', when: (d) => d.header.tone === 'custom' && d.header.bgType === 'image' },
+  { key: 'header.overlay', label: 'Darken the image', type: 'range', min: 0, max: 0.9, step: 0.05, when: (d) => d.header.tone === 'custom' && d.header.bgType === 'image', help: 'Makes light text readable on busy photos.' },
+  { key: 'header.textColor', label: 'Text colour (empty = theme)', type: 'color', when: (d) => d.header.tone === 'custom' },
+  { key: 'header.size', label: 'Band height', type: 'segmented', options: [{ value: 'compact', label: 'Compact' }, { value: 'normal', label: 'Normal' }, { value: 'tall', label: 'Tall' }] },
+  { group: 'Background of the whole tab' },
+  {
+    key: 'background.type',
+    label: 'Tab background',
+    type: 'segmented',
+    options: [
+      { value: 'none', label: 'Theme' },
+      { value: 'color', label: 'Colour' },
+      { value: 'gradient', label: 'Gradient' },
+      { value: 'image', label: 'Image' },
+    ],
+    help: 'Shows behind every section that uses the “inherit” background.',
+  },
+  { key: 'background.color', label: 'Colour', type: 'color', when: (d) => ['color', 'gradient'].includes(d.background.type) },
+  { key: 'background.color2', label: 'Second colour', type: 'color', when: (d) => d.background.type === 'gradient' },
+  { key: 'background.angle', label: 'Gradient angle', type: 'range', min: 0, max: 360, step: 5, when: (d) => d.background.type === 'gradient' },
+  { key: 'background.image', label: 'Image', type: 'image', when: (d) => d.background.type === 'image' },
+  { key: 'background.overlay', label: 'Fade the image', type: 'range', min: 0, max: 0.95, step: 0.05, when: (d) => d.background.type === 'image', help: 'Covers the photo with the page colour so text stays readable.' },
+  { key: 'background.fixed', label: 'Keep the image still while scrolling', type: 'toggle', when: (d) => d.background.type === 'image' },
+  { key: 'background.textColor', label: 'Text colour (empty = theme)', type: 'color', when: (d) => d.background.type !== 'none' },
+];
+
+export function normalizePage(page) {
+  if (!page) return null;
+  return {
+    ...page,
+    title: page.title || page.id,
+    navLabel: page.navLabel || page.title || page.id,
+    inNav: page.inNav !== false,
+    header: { ...DEFAULT_PAGE_HEADER, title: page.title, ...(page.header || {}) },
+    background: { ...DEFAULT_PAGE_BACKGROUND, ...(page.background || {}) },
+    sections: Array.isArray(page.sections) ? page.sections : [],
+  };
+}
+
+export const PAGE_TEMPLATES = [
+  { id: 'blank', label: 'Blank tab', description: 'Just a title. Add sections afterwards.', sections: () => [] },
+  { id: 'list', label: 'Collection tab', description: 'Lists every item from one collection.', needsCollection: true, sections: (c) => [createSection('collection', { heading: { show: false }, props: { collection: c, mode: c === 'publications' ? 'citation' : c === 'gallery' ? 'masonry' : 'list', showSearch: true } })] },
+  { id: 'text', label: 'Text tab', description: 'A page of writing with an image.', sections: () => [createSection('richtext', { heading: { show: false }, props: { imageSide: 'right' } })] },
+  { id: 'contact', label: 'Contact tab', description: 'Contact details and a form.', sections: () => [createSection('contact', { heading: { show: false } })] },
+  { id: 'html', label: 'HTML tab', description: 'Paste a whole HTML page (with its CSS and JavaScript) as a tab.', sections: () => [createSection('html', { heading: { show: false }, style: { paddingTop: 24, paddingBottom: 48 } })] },
+];
